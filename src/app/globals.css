@@ -1,26 +1,406 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Newspaper Color Palette */
+  --newspaper-white: #ffffff;
+  --newspaper-black: #1a1a1a;
+  --newspaper-gray-100: #f8f9fa;
+  --newspaper-gray-200: #e9ecef;
+  --newspaper-gray-300: #dee2e6;
+  --newspaper-gray-400: #ced4da;
+  --newspaper-gray-500: #6c757d;
+  --newspaper-gray-600: #495057;
+  --newspaper-gray-700: #343a40;
+  --newspaper-gray-800: #212529;
+  --newspaper-gray-900: #0d1117;
+  
+  /* Accent Colors */
+  --newspaper-burgundy: #8b1538;
+  --newspaper-navy: #1e3a8a;
+  --newspaper-gold: #d4af37;
+  
+  /* Typography */
+  --font-serif: 'Playfair Display', serif;
+  --font-sans: 'Inter', sans-serif;
+  
+  /* Spacing */
+  --newspaper-gutter: 1.5rem;
+  --newspaper-column-gap: 2rem;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--newspaper-white);
+  --color-foreground: var(--newspaper-black);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: var(--newspaper-gray-900);
+    --foreground: var(--newspaper-white);
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--newspaper-white);
+  color: var(--newspaper-black);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  font-size: 16px;
+}
+
+/* Line clamp utilities for text truncation */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Newspaper Typography Classes */
+.newspaper-headline {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.newspaper-subheadline {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.newspaper-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.newspaper-caption {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Newspaper Layout Utilities */
+.newspaper-column {
+  column-count: 1;
+  column-gap: var(--newspaper-column-gap);
+}
+
+@media (min-width: 768px) {
+  .newspaper-column {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .newspaper-column {
+    column-count: 3;
+  }
+}
+
+.newspaper-masthead {
+  border-bottom: 4px solid var(--newspaper-black);
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+
+.newspaper-section-divider {
+  border-top: 2px solid var(--newspaper-gray-300);
+  border-bottom: 1px solid var(--newspaper-gray-200);
+  padding: 0.5rem 0;
+  margin: 2rem 0 1.5rem 0;
+  position: relative;
+}
+
+.newspaper-section-divider::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--newspaper-gray-400), transparent);
+}
+
+/* Card Styles */
+.newspaper-card {
+  background: var(--newspaper-white);
+  border: 1px solid var(--newspaper-gray-200);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.newspaper-card:hover {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Hero Section */
+.newspaper-hero {
+  background: linear-gradient(135deg, var(--newspaper-gray-50) 0%, var(--newspaper-white) 100%);
+  border: 2px solid var(--newspaper-gray-200);
+  position: relative;
+}
+
+.newspaper-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--newspaper-burgundy);
+}
+
+/* Trending Ticker */
+.trending-ticker {
+  background: linear-gradient(135deg, var(--newspaper-black) 0%, #2a2a2a 100%);
+  color: var(--newspaper-white);
+  padding: 0.75rem 0;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  width: 100%;
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-top: 2px solid var(--newspaper-gold);
+  border-bottom: 2px solid var(--newspaper-gold);
+}
+
+
+.trending-ticker > div {
+  display: inline-block;
+  width: auto;
+  white-space: nowrap;
+  margin: 0;
+  padding: 0;
+  line-height: 1.2;
+  min-width: 100%;
+}
+
+/* Search Bar */
+.newspaper-search {
+  border: 2px solid var(--newspaper-gray-300);
+  border-radius: 0;
+  font-family: var(--font-sans);
+  transition: border-color 0.3s ease;
+  min-width: 120px;
+}
+
+.newspaper-search:focus {
+  border-color: var(--newspaper-burgundy);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(139, 21, 56, 0.1);
+}
+
+/* Mobile search adjustments */
+@media (max-width: 640px) {
+  .newspaper-search {
+    font-size: 14px;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+/* Dark Mode Styles */
+@media (prefers-color-scheme: dark) {
+  .newspaper-card {
+    background: var(--newspaper-gray-800);
+    border-color: var(--newspaper-gray-700);
+  }
+  
+  .newspaper-hero {
+    background: linear-gradient(135deg, var(--newspaper-gray-800) 0%, var(--newspaper-gray-900) 100%);
+    border-color: var(--newspaper-gray-700);
+  }
+  
+  .newspaper-section-divider {
+    border-color: var(--newspaper-gray-600);
+  }
+  
+  .newspaper-search {
+    background: var(--newspaper-gray-800);
+    border-color: var(--newspaper-gray-600);
+    color: var(--newspaper-white);
+  }
+}
+
+/* Enhanced Animations and Micro-interactions */
+.newspaper-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.newspaper-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.newspaper-card:hover::before {
+  left: 100%;
+}
+
+/* Typography Animations */
+.newspaper-headline {
+  position: relative;
+  overflow: hidden;
+}
+
+.newspaper-headline::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--newspaper-burgundy);
+  transition: width 0.3s ease;
+}
+
+.newspaper-headline:hover::after {
+  width: 100%;
+}
+
+/* Button Animations */
+.newspaper-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.newspaper-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.newspaper-button:hover::before {
+  left: 100%;
+}
+
+/* Ticker Animation */
+@keyframes ticker {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.trending-ticker > div {
+  animation: ticker 45s linear infinite;
+}
+
+/* Add subtle pulsing effect to ticker */
+.trending-ticker {
+  animation: tickerPulse 3s ease-in-out infinite;
+}
+
+@keyframes tickerPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+/* Hover Effects for Interactive Elements */
+.newspaper-caption:hover {
+  color: var(--newspaper-burgundy);
+  transition: color 0.3s ease;
+}
+
+/* Focus States */
+.newspaper-search:focus {
+  transform: scale(1.02);
+  transition: transform 0.2s ease;
+}
+
+/* Loading Animation Enhancement */
+@keyframes newspaper-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.newspaper-loading {
+  animation: newspaper-spin 1s linear infinite;
+}
+
+/* Section Divider Animation */
+.newspaper-section-divider::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  background: var(--newspaper-burgundy);
+  transition: width 0.5s ease;
+}
+
+.newspaper-section-divider:hover::after {
+  width: 100px;
+}
+
+/* Card Stagger Animation */
+.newspaper-card {
+  animation: fadeInUp 0.6s ease forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.newspaper-card:nth-child(1) { animation-delay: 0.1s; }
+.newspaper-card:nth-child(2) { animation-delay: 0.2s; }
+.newspaper-card:nth-child(3) { animation-delay: 0.3s; }
+.newspaper-card:nth-child(4) { animation-delay: 0.4s; }
+.newspaper-card:nth-child(5) { animation-delay: 0.5s; }
+.newspaper-card:nth-child(6) { animation-delay: 0.6s; }
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }
