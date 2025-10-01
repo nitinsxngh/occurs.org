@@ -1,0 +1,23 @@
+# robots.txt for occurs.org
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Block sensitive areas
+Disallow: /_next/
+Disallow: /admin/
+Disallow: /private/
+
+# Sitemaps
+Sitemap: https://occurs.org/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1
+
+# Allow specific bots
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+

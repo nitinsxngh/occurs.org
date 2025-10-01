@@ -7,7 +7,15 @@ export function useNews(initialFilters: { limit?: number } = {}) {
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const [lastFetchTime, setLastFetchTime] = useState<Date>(new Date());
-  const [limit, setLimit] = useState(initialFilters.limit || 150);
+  const [limit] = useState(initialFilters.limit || 20); // Reduced default from 100 to 20
+  const [pagination, setPagination] = useState<{ 
+    currentPage: number; 
+    itemsPerPage: number; 
+    hasNextPage: boolean; 
+    hasPreviousPage: boolean; 
+    nextPageToken: string | null; 
+    totalItems: number; 
+  } | null>(null);
 
   const fetchNews = useCallback(async () => {
     try {
@@ -23,9 +31,15 @@ export function useNews(initialFilters: { limit?: number } = {}) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data: NewsResponse = await response.json();
+      const responseText = await response.text();
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+
+      const data: NewsResponse = JSON.parse(responseText);
       setNews(data.news);
       setTotalCount(data.count);
+      setPagination(data.pagination || null);
       if (data.fetchedAt) {
         setLastFetchTime(new Date(data.fetchedAt));
       }
@@ -52,5 +66,6 @@ export function useNews(initialFilters: { limit?: number } = {}) {
     totalCount,
     lastFetchTime,
     refreshNews,
+    pagination,
   };
 }

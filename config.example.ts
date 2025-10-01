@@ -8,6 +8,9 @@ export const config = {
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
     },
   },
+  limits: {
+    maxArticles: 100, // Maximum number of articles to display on the website
+  },
   dynamodb: {
     tableName: process.env.DYNAMODB_TABLE_NAME || 'indian-news-content',
   },

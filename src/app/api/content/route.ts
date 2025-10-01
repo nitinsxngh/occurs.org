@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log(`🔍 Fetching content from S3: ${bucket}/${s3Key}`);
+    // Fetching content from S3
 
     // Get object from S3
     const command = new GetObjectCommand({
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     let parsedContent;
     try {
       parsedContent = JSON.parse(content);
-    } catch (parseError) {
+    } catch {
       // If not JSON, return as plain text
       parsedContent = {
         raw_content: content,
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('❌ Error fetching S3 content:', error);
+    // Error fetching S3 content
     
     if (error instanceof Error) {
       if (error.name === 'NoSuchKey') {

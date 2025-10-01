@@ -2,8 +2,12 @@
 
 import { useNews } from '@/hooks/useNews';
 import NewsCard from '@/components/NewsCard';
+import { NewsItem } from '@/types/news';
+import { generateArticleSlug } from '@/utils/slug';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ErrorMessage from '@/components/ErrorMessage';
+import Image from 'next/image';
+import Link from 'next/link';
 import { 
   Newspaper, 
   Clock, 
@@ -23,23 +27,126 @@ export default function Home() {
     loading,
     error,
     refreshNews,
-  } = useNews({ limit: 150 });
+    pagination,
+  } = useNews({ limit: 20 }); // Reduced initial load from 100 to 20
 
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [trendingTicker, setTrendingTicker] = useState('');
+  const [allNews, setAllNews] = useState<NewsItem[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [savedScrollPosition, setSavedScrollPosition] = useState<number>(0);
 
   const handleRefresh = () => {
     refreshNews();
+    setAllNews([]);
+    setNextPageToken(null);
+    // Clear saved state on refresh
+    sessionStorage.removeItem('newsPageState');
   };
 
-  const sourcesCount = new Set(news.map(article => article.source)).size;
+  // Function to save current state before navigation
+  const saveCurrentState = () => {
+    const stateToSave = {
+      allNews,
+      nextPageToken,
+      scrollPosition: window.scrollY
+    };
+    sessionStorage.setItem('newsPageState', JSON.stringify(stateToSave));
+  };
+
+  // Update nextPageToken when pagination changes
+  useEffect(() => {
+    if (pagination?.nextPageToken) {
+      setNextPageToken(pagination.nextPageToken);
+    }
+  }, [pagination]);
+
+  // Restore saved state when component mounts
+  useEffect(() => {
+    const savedState = sessionStorage.getItem('newsPageState');
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState);
+        if (state.allNews && Array.isArray(state.allNews)) {
+          setAllNews(state.allNews);
+        }
+        if (state.nextPageToken) {
+          setNextPageToken(state.nextPageToken);
+        }
+        if (state.scrollPosition && typeof state.scrollPosition === 'number') {
+          setSavedScrollPosition(state.scrollPosition);
+        }
+      } catch (error) {
+        console.error('Error restoring saved state:', error);
+      }
+    }
+  }, []);
+
+  // Save state to sessionStorage when it changes
+  useEffect(() => {
+    if (allNews.length > 0 || nextPageToken) {
+      const stateToSave = {
+        allNews,
+        nextPageToken,
+        scrollPosition: window.scrollY
+      };
+      sessionStorage.setItem('newsPageState', JSON.stringify(stateToSave));
+    }
+  }, [allNews, nextPageToken]);
+
+  // Restore scroll position after content is loaded
+  useEffect(() => {
+    if (savedScrollPosition > 0 && (news.length > 0 || allNews.length > 0)) {
+      // Small delay to ensure content is rendered
+      setTimeout(() => {
+        window.scrollTo(0, savedScrollPosition);
+        setSavedScrollPosition(0); // Reset after scrolling
+      }, 100);
+    }
+  }, [news, allNews, savedScrollPosition]);
+
+  const loadMoreNews = async () => {
+    if (isLoadingMore || !nextPageToken) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const response = await fetch(`/api/news?limit=20&lastEvaluatedKey=${encodeURIComponent(nextPageToken)}`);
+      const data = await response.json();
+      
+      if (data.news && data.news.length > 0) {
+        setAllNews(prev => [...prev, ...data.news]);
+            setNextPageToken(data.pagination?.nextPageToken || null);
+      }
+    } catch (error) {
+      console.error('Failed to load more news:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Combine initial news with loaded news, removing duplicates
+  const combinedNews = [...news, ...allNews].filter((article, index, self) => 
+    index === self.findIndex(a => a.id === article.id)
+  );
+
+  const isValidImageUrl = (url: string): boolean => {
+    try {
+      new URL(url);
+      return url.startsWith('http://') || url.startsWith('https://');
+    } catch {
+      return false;
+    }
+  };
+
+  const sourcesCount = new Set(combinedNews.map(article => article.source)).size;
 
   // Generate trending ticker from breaking news
   useEffect(() => {
     // Get breaking news and high-priority news
-    const breakingNews = news.filter(article => 
+    const breakingNews = combinedNews.filter(article => 
       article.processed?.website?.sentiment === 'negative' || 
       article.category === 'Breaking' ||
       article.category?.toLowerCase().includes('breaking') ||
@@ -48,7 +155,7 @@ export default function Home() {
     );
     
     // If no breaking news, get latest high-priority news (first 5 articles)
-    const priorityNews = breakingNews.length > 0 ? breakingNews : news.slice(0, 8);
+    const priorityNews = breakingNews.length > 0 ? breakingNews : combinedNews.slice(0, 8);
     
     if (priorityNews.length > 0) {
       const tickerText = priorityNews
@@ -72,10 +179,10 @@ export default function Home() {
     } else {
       setTrendingTicker('');
     }
-  }, [news]);
+  }, [combinedNews]);
 
   // Filter news based on search
-  const filteredNews = news.filter(article => 
+  const filteredNews = combinedNews.filter(article => 
     article.headline.toLowerCase().includes(searchQuery.toLowerCase()) ||
     article.processed?.website?.summary?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     article.category.toLowerCase().includes(searchQuery.toLowerCase())
@@ -133,7 +240,7 @@ export default function Home() {
                 THE DIGITAL CHRONICLE
               </p>
               <p className="newspaper-body text-sm sm:text-base md:text-lg text-gray-500 dark:text-gray-500 mt-2 sm:mt-3 px-4">
-                &ldquo;All the News That&apos;s Fit to Print&rdquo; • Est. 2024
+                &ldquo;All the News That&apos;s Fit to Print&rdquo; • Est. 2025
               </p>
             </div>
           </div>
@@ -256,38 +363,47 @@ export default function Home() {
             {/* Hero Section - Featured Story */}
             {featuredStory && (
               <section className="mb-12">
-                <div className="newspaper-hero p-8 mb-8">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <span className="newspaper-caption text-red-600">BREAKING NEWS</span>
+                <Link 
+                  href={`/article/${generateArticleSlug(featuredStory)}`}
+                  onClick={saveCurrentState}
+                  className="block"
+                >
+                  <div className="newspaper-hero p-8 mb-8 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div>
+                        <div className="flex items-center gap-2 mb-4">
+                          <span className="newspaper-caption text-red-600">BREAKING NEWS</span>
+                        </div>
+                        <h2 className="newspaper-headline text-4xl md:text-5xl text-black dark:text-white mb-4 leading-tight hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                          {featuredStory.headline}
+                        </h2>
+                        <p className="newspaper-body text-lg text-gray-700 dark:text-gray-300 mb-6 leading-relaxed">
+                          {featuredStory.processed?.website?.summary || 'No summary available.'}
+                        </p>
+                        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {format(new Date(featuredStory.created_at || featuredStory.scraped_at), 'MMM d, yyyy')}
+                          </span>
+                          <span>•</span>
+                          <span>{featuredStory.raw?.reading_time || 5} min read</span>
+                        </div>
                       </div>
-                      <h2 className="newspaper-headline text-4xl md:text-5xl text-black dark:text-white mb-4 leading-tight">
-                        {featuredStory.headline}
-                      </h2>
-                      <p className="newspaper-body text-lg text-gray-700 dark:text-gray-300 mb-6 leading-relaxed">
-                        {featuredStory.processed?.website?.summary || 'No summary available.'}
-                      </p>
-                      <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {format(new Date(featuredStory.created_at || featuredStory.scraped_at), 'MMM d, yyyy')}
-                        </span>
-                        <span>•</span>
-                        <span>{featuredStory.raw?.reading_time || 5} min read</span>
-                      </div>
+                      {featuredStory.top_image && featuredStory.top_image !== "NA" && isValidImageUrl(featuredStory.top_image) && (
+                        <div className="relative w-full h-80">
+                          <Image
+                            src={featuredStory.top_image}
+                            alt={featuredStory.headline}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, 50vw"
+                            priority
+                          />
+                        </div>
+                      )}
                     </div>
-                    {featuredStory.top_image && featuredStory.top_image !== "NA" && (
-                      <div className="relative">
-                        <img
-                          src={featuredStory.top_image}
-                          alt={featuredStory.headline}
-                          className="w-full h-80 object-cover"
-                        />
-                      </div>
-                    )}
                   </div>
-                </div>
+                </Link>
               </section>
             )}
 
@@ -301,9 +417,32 @@ export default function Home() {
             {/* News Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {otherNews.map((article) => (
-                <NewsCard key={article.id} article={article} />
+                <NewsCard key={article.id} article={article} onArticleClick={saveCurrentState} />
               ))}
             </div>
+
+            {/* Load More Button */}
+            {otherNews.length > 0 && nextPageToken && (
+              <div className="flex justify-center mt-12">
+                <button
+                  onClick={loadMoreNews}
+                  disabled={isLoadingMore}
+                  className="newspaper-button inline-flex items-center gap-2 px-8 py-3 bg-black dark:bg-white text-white dark:text-black font-medium hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white dark:border-black border-t-transparent rounded-full animate-spin"></div>
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4" />
+                      Load More News
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </>
         )}
       </main>
@@ -311,13 +450,52 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-gray-100 dark:bg-gray-800 border-t-2 border-black dark:border-white mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">
-            <p className="newspaper-caption text-gray-600 dark:text-gray-400 mb-2">
-              © 2024 OCCURS.ORG - THE DIGITAL CHRONICLE
-            </p>
-            <p className="newspaper-body text-sm text-gray-500 dark:text-gray-500">
-              Stay informed with the latest news from trusted sources worldwide.
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            {/* About */}
+            <div>
+              <h3 className="newspaper-caption text-black dark:text-white mb-4">About</h3>
+              <div className="space-y-2">
+                <Link href="/about" className="block text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                  About Us
+                </Link>
+                <Link href="/contact" className="block text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                  Contact
+                </Link>
+              </div>
+            </div>
+
+            {/* Legal */}
+            <div>
+              <h3 className="newspaper-caption text-black dark:text-white mb-4">Legal</h3>
+              <div className="space-y-2">
+                <Link href="/privacy-policy" className="block text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                  Privacy Policy
+                </Link>
+                <Link href="/terms-of-service" className="block text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                  Terms of Service
+                </Link>
+              </div>
+            </div>
+
+            {/* Contact Info */}
+            <div>
+              <h3 className="newspaper-caption text-black dark:text-white mb-4">Contact Info</h3>
+              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                <p>Email: connect@occurs.org</p>
+                <p>Noida, Uttar Pradesh, India</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-300 dark:border-gray-600 pt-6">
+            <div className="text-center">
+              <p className="newspaper-caption text-gray-600 dark:text-gray-400 mb-2">
+                © 2025 OCCURS.ORG - THE DIGITAL CHRONICLE
+              </p>
+              <p className="newspaper-body text-sm text-gray-500 dark:text-gray-500">
+                Stay informed with the latest news from trusted sources worldwide.
+              </p>
+            </div>
           </div>
         </div>
       </footer>

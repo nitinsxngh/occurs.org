@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const source = searchParams.get('source');
     const category = searchParams.get('category');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '150'), 150); // Max 150 items
+    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50); // Max 50 items, default 20
     const breaking = searchParams.get('breaking') === 'true';
     const hasS3Data = searchParams.get('hasS3Data') === 'true';
     const page = parseInt(searchParams.get('page') || '1');
@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
       metadata: article.metadata
     }));
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       news: cleanedNews,
       count: cleanedNews.length,
       totalScanned: result.ScannedCount || 0,
@@ -180,8 +180,13 @@ export async function GET(request: NextRequest) {
       }
     });
 
-  } catch (error) {
-    console.error('Error fetching news:', error);
+    // Add caching headers for better performance
+    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    
+    return response;
+
+  } catch {
+    // Error fetching news
     return NextResponse.json(
       { error: 'Failed to fetch news data' },
       { status: 500 }

@@ -1,51 +1,71 @@
-'use client';
-
-import { useParams } from 'next/navigation';
-import { useNews } from '@/hooks/useNews';
 import { NewsItem } from '@/types/news';
-import { formatDistanceToNow, format } from 'date-fns';
-import { ArrowLeft, Clock, Users, MapPin, Building, Hash, Eye, Newspaper } from 'lucide-react';
+import { format } from 'date-fns';
+import { ArrowLeft, Clock, Users, MapPin, Building, Hash, Eye } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import StructuredData from '@/components/StructuredData';
+import { generateStructuredData, generateArticleMetadata } from '@/utils/metadata';
+import { notFound } from 'next/navigation';
 
-export default function ArticlePage() {
-  const params = useParams();
-  const slug = params.slug as string;
-  const [article, setArticle] = useState<NewsItem | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface ArticlePageProps {
+  params: Promise<{ slug: string }>;
+}
 
-  const { news } = useNews({ limit: 150 });
-
-  useEffect(() => {
-    if (news.length > 0) {
-      // Find article by slug (try multiple formats)
-      const foundArticle = news.find(item => {
-        // Try URL hash first
-        if (item.url_hash === slug) return true;
-        // Try ID
-        if (item.id === slug) return true;
-        // Try headline slug
-        const headlineSlug = item.headline.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-        if (headlineSlug === slug) return true;
-        return false;
-      });
-      
-      if (foundArticle) {
-        setArticle(foundArticle);
-      } else {
-        setError('Article not found');
-      }
-      setLoading(false);
+async function getArticle(slug: string): Promise<NewsItem | null> {
+  try {
+    // Use internal API call without full URL for better performance
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://occurs.org' 
+      : 'http://localhost:3000';
+    
+    const response = await fetch(`${baseUrl}/api/article/${slug}`, {
+      next: { revalidate: 1800 }, // Cache for 30 minutes
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      return null;
     }
-  }, [news, slug]);
+    
+    const data = await response.json();
+    return data.article || null;
+  } catch (error) {
+    console.error('Error fetching article:', error);
+    return null;
+  }
+}
 
-  const formatDate = (dateString: string) => {
+// Generate metadata for SEO
+export async function generateMetadata({ params }: ArticlePageProps) {
+  const { slug } = await params;
+  const article = await getArticle(slug);
+  
+  if (!article) {
+    return {
+      title: 'Article Not Found | occurs.org',
+      description: 'The article you are looking for could not be found.',
+    };
+  }
+
+  return generateArticleMetadata(article);
+}
+
+export default async function ArticlePage({ params }: ArticlePageProps) {
+  const { slug } = await params;
+  const article = await getArticle(slug);
+
+  if (!article) {
+    notFound();
+  }
+
+  const isValidImageUrl = (url: string): boolean => {
     try {
-      const date = new Date(dateString);
-      return formatDistanceToNow(date, { addSuffix: true });
+      new URL(url);
+      return url.startsWith('http://') || url.startsWith('https://');
     } catch {
-      return 'Unknown time';
+      return false;
     }
   };
 
@@ -58,54 +78,20 @@ export default function ArticlePage() {
     }
   };
 
-  const getSourceColor = (source: string) => {
-    const colors: Record<string, string> = {
-      'The Hindu': 'bg-orange-100 text-orange-800 border-orange-200',
-      'Times of India': 'bg-amber-100 text-amber-800 border-amber-200',
-      'Hindustan Times': 'bg-blue-100 text-blue-800 border-blue-200',
-      'Indian Express': 'bg-green-100 text-green-800 border-green-200',
-      'BBC News': 'bg-red-100 text-red-800 border-red-200',
-      'CNN': 'bg-blue-100 text-blue-800 border-blue-200',
-    };
-    return colors[source] || 'bg-gray-100 text-gray-800 border-gray-200';
-  };
 
 
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading article...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !article) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Newspaper className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Article Not Found</h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">The article you&apos;re looking for doesn&apos;t exist.</p>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to News
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://occurs.org';
+  const structuredData = article ? generateStructuredData(article, baseUrl) : null;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-900 border-b-4 border-black dark:border-white">
+    <>
+      {structuredData && (
+        <StructuredData data={[structuredData.newsArticle, structuredData.organization, structuredData.breadcrumb]} />
+      )}
+      <div className="min-h-screen bg-white dark:bg-gray-900">
+        {/* Header */}
+        <header className="bg-white dark:bg-gray-900 border-b-4 border-black dark:border-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <Link
@@ -161,6 +147,41 @@ export default function ArticlePage() {
               </p>
             </div>
           </div>
+
+          {/* Article Image with Credits */}
+          {article.top_image && article.top_image !== "NA" && isValidImageUrl(article.top_image) && (
+            <div className="p-8 border-b-2 border-black dark:border-white">
+              <div className="relative w-full h-96 mb-4">
+                <Image
+                  src={article.top_image}
+                  alt={article.headline}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 768px"
+                  priority
+                />
+              </div>
+              {/* Image Credits */}
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 italic">
+                <span>
+                  {article.source ? `Image: ${article.source}` : 'Image: occurs.org'}
+                </span>
+                <span>
+                  {article.top_image.includes('indianexpress.com') && '© Indian Express'}
+                  {article.top_image.includes('hindustantimes.com') && '© Hindustan Times'}
+                  {article.top_image.includes('indiatoday.in') && '© India Today'}
+                  {article.top_image.includes('timesofindia.indiatimes.com') && '© Times of India'}
+                  {article.top_image.includes('thehindu.com') && '© The Hindu'}
+                  {!article.top_image.includes('indianexpress.com') && 
+                   !article.top_image.includes('hindustantimes.com') && 
+                   !article.top_image.includes('indiatoday.in') && 
+                   !article.top_image.includes('timesofindia.indiatimes.com') && 
+                   !article.top_image.includes('thehindu.com') && 
+                   '© Source'}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Main Content */}
           <div className="p-8">
@@ -259,20 +280,6 @@ export default function ArticlePage() {
               </div>
             )}
 
-            {/* Metadata */}
-            <div className="border-t-2 border-black dark:border-white pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-600 dark:text-gray-400">
-                <div>
-                  <h4 className="newspaper-caption text-black dark:text-white mb-2">ARTICLE DETAILS</h4>
-                  <ul className="space-y-1 newspaper-body">
-                    <li>Category: {article.category}</li>
-                    <li>Published: {formatExactDate(article.created_at || article.scraped_at)}</li>
-                    <li>Reading Time: {article.raw.reading_time} minutes</li>
-                    <li>Word Count: {article.raw.word_count}</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Footer */}
@@ -285,6 +292,7 @@ export default function ArticlePage() {
           </div>
         </article>
       </main>
-    </div>
+      </div>
+    </>
   );
 }

@@ -3,13 +3,15 @@ import { formatDistanceToNow } from 'date-fns';
 import { X, MapPin, Eye } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { generateArticleSlug } from '@/utils/slug';
 
 interface NewsCardProps {
   article: NewsItem;
+  onArticleClick?: () => void;
 }
 
-export default function NewsCard({ article }: NewsCardProps) {
+export default function NewsCard({ article, onArticleClick }: NewsCardProps) {
   const [showContent, setShowContent] = useState(false);
 
   const formatDate = (dateString: string) => {
@@ -31,16 +33,27 @@ export default function NewsCard({ article }: NewsCardProps) {
     }
   };
 
+  const isValidImageUrl = (url: string): boolean => {
+    try {
+      new URL(url);
+      return url.startsWith('http://') || url.startsWith('https://');
+    } catch {
+      return false;
+    }
+  };
+
 
   return (
     <article className="newspaper-card overflow-hidden">
-      {/* Article Image - only show if image exists */}
-      {article.top_image && article.top_image !== "NA" && (
+      {/* Article Image - only show if image exists and is valid */}
+      {article.top_image && article.top_image !== "NA" && isValidImageUrl(article.top_image) && (
         <div className="relative h-48 w-full overflow-hidden bg-gray-100 dark:bg-gray-800">
-          <img
+          <Image
             src={article.top_image}
             alt={article.headline}
-            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+            fill
+            className="object-cover transition-transform duration-300 hover:scale-105"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             onError={(e) => {
               e.currentTarget.parentElement?.remove();
             }}
@@ -55,8 +68,8 @@ export default function NewsCard({ article }: NewsCardProps) {
         </div>
       )}
       
-      {/* Sentiment badge for articles without images */}
-      {(!article.top_image || article.top_image === "NA") && (
+      {/* Sentiment badge for articles without valid images */}
+      {(!article.top_image || article.top_image === "NA" || !isValidImageUrl(article.top_image)) && (
         <div className="relative px-6 pt-4">
           <div className="mb-3 flex justify-end">
             {/* Sentiment Badge */}
@@ -83,6 +96,7 @@ export default function NewsCard({ article }: NewsCardProps) {
           <Link 
             href={`/article/${generateArticleSlug(article)}`}
             className="hover:underline"
+            onClick={onArticleClick}
           >
             {article.headline}
           </Link>
@@ -133,16 +147,39 @@ export default function NewsCard({ article }: NewsCardProps) {
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
               <div className="prose dark:prose-invert max-w-none">
                 {/* Article Image in Modal */}
-                {article.top_image && article.top_image !== "NA" && (
+                {article.top_image && article.top_image !== "NA" && isValidImageUrl(article.top_image) && (
                   <div className="mb-6">
-                    <img
-                      src={article.top_image}
-                      alt={article.headline}
-                      className="w-full h-64 object-cover rounded-lg shadow-md"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+                    <div className="relative w-full h-64 mb-2">
+                      <Image
+                        src={article.top_image}
+                        alt={article.headline}
+                        fill
+                        className="object-cover rounded-lg shadow-md"
+                        sizes="(max-width: 1200px) 90vw, 1200px"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    {/* Image Credits in Modal */}
+                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 italic">
+                      <span>
+                        {article.source ? `Image: ${article.source}` : 'Image: occurs.org'}
+                      </span>
+                      <span>
+                        {article.top_image.includes('indianexpress.com') && '© Indian Express'}
+                        {article.top_image.includes('hindustantimes.com') && '© Hindustan Times'}
+                        {article.top_image.includes('indiatoday.in') && '© India Today'}
+                        {article.top_image.includes('timesofindia.indiatimes.com') && '© Times of India'}
+                        {article.top_image.includes('thehindu.com') && '© The Hindu'}
+                        {!article.top_image.includes('indianexpress.com') && 
+                         !article.top_image.includes('hindustantimes.com') && 
+                         !article.top_image.includes('indiatoday.in') && 
+                         !article.top_image.includes('timesofindia.indiatimes.com') && 
+                         !article.top_image.includes('thehindu.com') && 
+                         '© Source'}
+                      </span>
+                    </div>
                   </div>
                 )}
                 
