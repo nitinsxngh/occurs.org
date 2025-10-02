@@ -37,8 +37,20 @@ function getBestDateForSorting(item: Record<string, unknown>): Date {
     }
   }
   
-  // Fallback to current time if no valid dates found
-  return new Date();
+  // Fallback to epoch time (oldest possible) to push items without dates to bottom
+  return new Date(0);
+}
+
+// Helper function to create a composite sort key for consistent ordering
+function createSortKey(item: Record<string, unknown>): string {
+  const date = getBestDateForSorting(item);
+  const isBreaking = item.breaking ? '1' : '0';
+  const confidenceScore = String(Number(item.confidence_score) || 0).padStart(10, '0');
+  const id = String(item.id || '').padStart(36, '0');
+  
+  // Format: YYYYMMDDHHMMSS-B-CONF-ID (newest first, breaking first, higher confidence first)
+  const dateStr = date.toISOString().replace(/[-T:.Z]/g, '').substring(0, 14);
+  return `${dateStr}-${isBreaking}-${confidenceScore}-${id}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -52,15 +64,14 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const lastEvaluatedKey = searchParams.get('lastEvaluatedKey');
 
-    // Build scan parameters
-    let filterExpression = '';
+    // Build filter expression for processed content
+    let filterExpression = 'attribute_exists(#processed)';
     const expressionAttributeValues: Record<string, AttributeValue> = {};
-    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeNames: Record<string, string> = {
+      '#processed': 'processed'
+    };
 
-    // Always filter for processed content
-    filterExpression += 'attribute_exists(#processed)';
-    expressionAttributeNames['#processed'] = 'processed';
-
+    // Add additional filters
     if (source) {
       filterExpression += ' AND #source = :source';
       expressionAttributeNames['#source'] = 'source';
@@ -79,12 +90,15 @@ export async function GET(request: NextRequest) {
       expressionAttributeValues[':breaking'] = { BOOL: true };
     }
 
-    // Additional S3 data filtering if requested
     if (hasS3Data) {
       filterExpression += ' AND attribute_exists(#s3_key)';
       expressionAttributeNames['#s3_key'] = 's3_key';
     }
 
+    // For the first page, fetch more items to ensure we have enough after sorting
+    const fetchLimit = page === 1 ? limit * 3 : limit * 2;
+
+    // Use efficient scan with proper pagination
     const scanParams: {
       TableName: string;
       Limit: number;
@@ -94,7 +108,7 @@ export async function GET(request: NextRequest) {
       ExclusiveStartKey?: Record<string, AttributeValue>;
     } = {
       TableName: process.env.DYNAMODB_TABLE_NAME || 'indian-news-content',
-      Limit: limit,
+      Limit: fetchLimit,
     };
 
     // Add pagination support
@@ -109,7 +123,6 @@ export async function GET(request: NextRequest) {
     if (filterExpression) {
       scanParams.FilterExpression = filterExpression;
       scanParams.ExpressionAttributeNames = expressionAttributeNames;
-      // Only add ExpressionAttributeValues if it's not empty
       if (Object.keys(expressionAttributeValues).length > 0) {
         scanParams.ExpressionAttributeValues = expressionAttributeValues;
       }
@@ -122,25 +135,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ news: [], count: 0 });
     }
 
-    // Sort by date (newest first) with improved date handling
+    // Sort items by composite sort key (newest first)
     const sortedNews = result.Items.sort((a, b) => {
-      const dateA = getBestDateForSorting(a);
-      const dateB = getBestDateForSorting(b);
-      
-      // Sort by timestamp (newest first) - higher timestamp comes first
-      const timeDiff = dateB.getTime() - dateA.getTime();
-      
-      // If timestamps are the same, prioritize breaking news
-      if (timeDiff === 0) {
-        if (a.breaking && !b.breaking) return -1;
-        if (!a.breaking && b.breaking) return 1;
-      }
-      
-      return timeDiff;
+      const sortKeyA = createSortKey(a);
+      const sortKeyB = createSortKey(b);
+      return sortKeyB.localeCompare(sortKeyA); // Descending order (newest first)
     });
 
+    // Apply pagination after sorting
+    const startIndex = page === 1 ? 0 : (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedNews = sortedNews.slice(startIndex, endIndex);
+
     // Return rich content articles
-    const cleanedNews = sortedNews.map(article => ({
+    const cleanedNews = paginatedNews.map(article => ({
       id: article.id,
       headline: article.headline,
       url: article.url,
@@ -165,6 +173,10 @@ export async function GET(request: NextRequest) {
       metadata: article.metadata
     }));
 
+    // Create pagination info
+    const hasNextPage = result.LastEvaluatedKey !== undefined || (sortedNews.length > endIndex);
+    const nextPageToken = hasNextPage ? (page + 1).toString() : null;
+
     const response = NextResponse.json({
       news: cleanedNews,
       count: cleanedNews.length,
@@ -173,10 +185,15 @@ export async function GET(request: NextRequest) {
       pagination: {
         currentPage: page,
         itemsPerPage: limit,
-        hasNextPage: !!result.LastEvaluatedKey,
+        hasNextPage,
         hasPreviousPage: page > 1,
-        nextPageToken: result.LastEvaluatedKey ? encodeURIComponent(JSON.stringify(result.LastEvaluatedKey)) : null,
+        nextPageToken,
         totalItems: result.Count || 0
+      },
+      sortingInfo: {
+        method: 'chronological_with_priority',
+        priority: ['date', 'breaking_news', 'confidence_score', 'id'],
+        breakingNewsPriority: true,
       }
     });
 
@@ -185,8 +202,8 @@ export async function GET(request: NextRequest) {
     
     return response;
 
-  } catch {
-    // Error fetching news
+  } catch (error) {
+    console.error('Error fetching news:', error);
     return NextResponse.json(
       { error: 'Failed to fetch news data' },
       { status: 500 }

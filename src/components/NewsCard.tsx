@@ -17,7 +17,25 @@ export default function NewsCard({ article, onArticleClick }: NewsCardProps) {
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return formatDistanceToNow(date, { addSuffix: true });
+      if (isNaN(date.getTime())) {
+        return 'Unknown time';
+      }
+      
+      // Use the most recent date available for display
+      const dates = [
+        article.processed_at,
+        article.scraped_at,
+        article.created_at,
+        dateString
+      ].filter(Boolean);
+      
+      const mostRecentDate = dates.reduce((latest, current) => {
+        const latestDate = new Date(latest);
+        const currentDate = new Date(current);
+        return currentDate > latestDate ? current : latest;
+      });
+      
+      return formatDistanceToNow(new Date(mostRecentDate), { addSuffix: true });
     } catch {
       return 'Unknown time';
     }

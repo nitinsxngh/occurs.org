@@ -113,12 +113,12 @@ export default function Home() {
     
     setIsLoadingMore(true);
     try {
-      const response = await fetch(`/api/news?limit=20&lastEvaluatedKey=${encodeURIComponent(nextPageToken)}`);
+      const response = await fetch(`/api/news?limit=20&page=${nextPageToken}`);
       const data = await response.json();
       
       if (data.news && data.news.length > 0) {
         setAllNews(prev => [...prev, ...data.news]);
-            setNextPageToken(data.pagination?.nextPageToken || null);
+        setNextPageToken(data.pagination?.nextPageToken || null);
       }
     } catch (error) {
       console.error('Failed to load more news:', error);

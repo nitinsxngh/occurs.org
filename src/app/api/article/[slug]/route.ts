@@ -78,26 +78,45 @@ export async function GET(
       return NextResponse.json({ article: result.Items[0] });
     }
 
-    // If no exact match, try to find by headline slug
-    const allItemsCommand = new ScanCommand({
-      TableName: process.env.DYNAMODB_TABLE_NAME || 'indian-news-content',
-      Limit: 50 // Scan first 50 items to find by headline (reduced for performance)
-    });
-
-    result = await docClient.send(allItemsCommand);
+    // If no exact match, try to find by headline slug with pagination
+    let foundArticle = null;
+    let lastEvaluatedKey = undefined;
     
-    if (result.Items && result.Items.length > 0) {
-      const foundArticle = result.Items.find(item => {
-        if (!item.headline) return false;
-        const headlineSlug = generateSlug(item.headline);
-        const truncatedSlug = headlineSlug.length > 60 
-          ? headlineSlug.substring(0, 60).replace(/-+$/, '')
-          : headlineSlug;
-        return truncatedSlug === slug && truncatedSlug.length > 10;
+    // Scan through all items to find by headline slug (with pagination)
+    while (!foundArticle) {
+      const allItemsCommand = new ScanCommand({
+        TableName: process.env.DYNAMODB_TABLE_NAME || 'indian-news-content',
+        Limit: 100, // Increased batch size for better performance
+        ExclusiveStartKey: lastEvaluatedKey
       });
+
+      result = await docClient.send(allItemsCommand);
       
-      if (foundArticle) {
-        return NextResponse.json({ article: foundArticle });
+      if (result.Items && result.Items.length > 0) {
+        foundArticle = result.Items.find(item => {
+          if (!item.headline) return false;
+          
+          // Generate slug with India suffix (matching the frontend logic)
+          let headlineSlug = generateSlug(item.headline);
+          headlineSlug = `${headlineSlug}-india`;
+          
+          const truncatedSlug = headlineSlug.length > 65 
+            ? headlineSlug.substring(0, 65).replace(/-+$/, '')
+            : headlineSlug;
+            
+            
+          return truncatedSlug === slug && truncatedSlug.length > 10;
+        });
+        
+        if (foundArticle) {
+          return NextResponse.json({ article: foundArticle });
+        }
+      }
+      
+      // Check if there are more items to scan
+      lastEvaluatedKey = result.LastEvaluatedKey;
+      if (!lastEvaluatedKey) {
+        break; // No more items to scan
       }
     }
 
