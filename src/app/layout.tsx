@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     description: "Your trusted source for comprehensive news coverage, delivering the latest breaking news and in-depth journalism from trusted sources worldwide.",
     images: [
       {
-        url: `${baseUrl}/og-default.png`,
+        url: `${baseUrl}/android-chrome-512x512.png`,
         width: 1200,
         height: 630,
         alt: "occurs.org - The Digital Chronicle",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     description: "Your trusted source for comprehensive news coverage and in-depth journalism.",
     creator: "@occursorg",
     site: "@occursorg",
-    images: [`${baseUrl}/og-default.png`],
+    images: [`${baseUrl}/android-chrome-512x512.png`],
   },
   robots: {
     index: true,
@@ -71,11 +71,13 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
   },
   manifest: '/manifest.json',

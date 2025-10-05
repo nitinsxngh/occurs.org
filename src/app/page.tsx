@@ -3,8 +3,7 @@
 import { useNews } from '@/hooks/useNews';
 import NewsCard from '@/components/NewsCard';
 import { NewsItem } from '@/types/news';
-import { generateArticleSlug } from '@/utils/slug';
-import LoadingSpinner from '@/components/LoadingSpinner';
+// Removed generateArticleSlug import since we now use direct slug from DB
 import ErrorMessage from '@/components/ErrorMessage';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -46,6 +45,22 @@ export default function Home() {
     // Clear saved state on refresh
     sessionStorage.removeItem('newsPageState');
   };
+
+  // Debug: Log news data structure
+  useEffect(() => {
+    if (news.length > 0) {
+      console.log('Sample news article structure:', {
+        firstArticle: news[0],
+        fields: Object.keys(news[0]),
+        hasSlug: !!news[0].slug,
+        hasUrlHash: !!news[0].url_hash,
+        hasId: !!news[0].id,
+        slug: news[0].slug,
+        url_hash: news[0].url_hash,
+        id: news[0].id
+      });
+    }
+  }, [news]);
 
   // Function to save current state before navigation
   const saveCurrentState = () => {
@@ -191,10 +206,6 @@ export default function Home() {
   // Get featured story (first article)
   const featuredStory = filteredNews[0];
   const otherNews = filteredNews.slice(1);
-
-  if (loading && news.length === 0) {
-    return <LoadingSpinner />;
-  }
 
   if (error) {
     return <ErrorMessage message={error} onRetry={handleRefresh} />;
@@ -347,7 +358,10 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
-          <LoadingSpinner />
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading latest news...</p>
+          </div>
         ) : filteredNews.length === 0 ? (
           <div className="text-center py-12">
             <Newspaper className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -364,8 +378,40 @@ export default function Home() {
             {featuredStory && (
               <section className="mb-12">
                 <Link 
-                  href={`/article/${generateArticleSlug(featuredStory)}`}
-                  onClick={saveCurrentState}
+                  href={`/article/${(() => {
+                    // If slug exists and is different from url_hash, use slug
+                    if (featuredStory.slug && featuredStory.slug !== featuredStory.url_hash) {
+                      return featuredStory.slug;
+                    }
+                    // If slug looks like a hash (32 chars, hex), use ID instead
+                    if (featuredStory.slug && /^[a-f0-9]{32}$/i.test(featuredStory.slug)) {
+                      return featuredStory.id;
+                    }
+                    // Otherwise use the slug or fallback to ID
+                    return featuredStory.slug || featuredStory.id;
+                  })()}`}
+                  onClick={() => {
+                    const finalSlug = (() => {
+                      if (featuredStory.slug && featuredStory.slug !== featuredStory.url_hash) {
+                        return featuredStory.slug;
+                      }
+                      if (featuredStory.slug && /^[a-f0-9]{32}$/i.test(featuredStory.slug)) {
+                        return featuredStory.id;
+                      }
+                      return featuredStory.slug || featuredStory.id;
+                    })();
+                    
+                    console.log('Featured story clicked:', {
+                      headline: featuredStory.headline,
+                      slug: featuredStory.slug,
+                      url_hash: featuredStory.url_hash,
+                      id: featuredStory.id,
+                      finalSlug: finalSlug,
+                      hasProperSlug: !!featuredStory.slug && featuredStory.slug !== featuredStory.url_hash,
+                      isHashLike: featuredStory.slug && /^[a-f0-9]{32}$/i.test(featuredStory.slug)
+                    });
+                    saveCurrentState();
+                  }}
                   className="block"
                 >
                   <div className="newspaper-hero p-8 mb-8 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer">
@@ -398,6 +444,8 @@ export default function Home() {
                             className="object-cover"
                             sizes="(max-width: 768px) 100vw, 50vw"
                             priority
+                            placeholder="blur"
+                            blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
                           />
                         </div>
                       )}

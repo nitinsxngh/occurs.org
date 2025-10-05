@@ -1,10 +1,9 @@
 import { NewsItem } from '@/types/news';
 import { formatDistanceToNow } from 'date-fns';
-import { X, MapPin, Eye } from 'lucide-react';
+import { X, MapPin, Eye, AlertTriangle, TrendingUp, Star } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { generateArticleSlug } from '@/utils/slug';
 
 interface NewsCardProps {
   article: NewsItem;
@@ -51,6 +50,37 @@ export default function NewsCard({ article, onArticleClick }: NewsCardProps) {
     }
   };
 
+  const getUrgencyColor = (urgency?: string) => {
+    if (!urgency) return 'text-gray-700 bg-gray-100 border-gray-200';
+    switch (urgency) {
+      case 'high': return 'text-red-700 bg-red-100 border-red-200';
+      case 'medium': return 'text-yellow-700 bg-yellow-100 border-yellow-200';
+      case 'low': return 'text-green-700 bg-green-100 border-green-200';
+      default: return 'text-gray-700 bg-gray-100 border-gray-200';
+    }
+  };
+
+  const getImpactScopeIcon = (scope?: string) => {
+    if (!scope) return '📰';
+    switch (scope) {
+      case 'international': return '🌍';
+      case 'national': return '🏛️';
+      case 'regional': return '🏙️';
+      case 'local': return '📍';
+      default: return '📰';
+    }
+  };
+
+  const getNewsTypeColor = (type?: string) => {
+    if (!type) return 'text-gray-600 bg-gray-50 border-gray-200';
+    switch (type) {
+      case 'Breaking': return 'text-red-600 bg-red-50 border-red-200';
+      case 'Hard': return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'Soft': return 'text-green-600 bg-green-50 border-green-200';
+      default: return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  };
+
   const isValidImageUrl = (url: string): boolean => {
     try {
       new URL(url);
@@ -72,6 +102,9 @@ export default function NewsCard({ article, onArticleClick }: NewsCardProps) {
             fill
             className="object-cover transition-transform duration-300 hover:scale-105"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            loading="lazy"
+            placeholder="blur"
+            blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
             onError={(e) => {
               e.currentTarget.parentElement?.remove();
             }}
@@ -99,11 +132,32 @@ export default function NewsCard({ article, onArticleClick }: NewsCardProps) {
       )}
       
       <div className="p-6">
-        {/* Category and Date */}
-        <div className="flex items-center justify-between mb-3">
-          <span className="newspaper-caption text-gray-500 dark:text-gray-400">
-            {article.category}
-          </span>
+        {/* Enhanced Category, Date, and New Badges */}
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* News Type Badge - only show if available */}
+            {article.news_type && (
+              <span className={`newspaper-caption px-2 py-1 text-xs border rounded ${getNewsTypeColor(article.news_type)}`}>
+                {article.news_type}
+              </span>
+            )}
+            
+            {/* Urgency Badge - only show if available */}
+            {article.urgency_level && (
+              <span className={`newspaper-caption px-2 py-1 text-xs border rounded ${getUrgencyColor(article.urgency_level)}`}>
+                <AlertTriangle className="w-3 h-3 inline mr-1" />
+                {article.urgency_level.toUpperCase()}
+              </span>
+            )}
+            
+            {/* Impact Scope - only show if available */}
+            {article.impact_scope && (
+              <span className="newspaper-caption text-gray-600 dark:text-gray-400">
+                {getImpactScopeIcon(article.impact_scope)} {article.impact_scope}
+              </span>
+            )}
+          </div>
+          
           <span className="newspaper-caption text-gray-500 dark:text-gray-400">
             {formatDate(article.created_at || article.scraped_at)}
           </span>
@@ -112,9 +166,41 @@ export default function NewsCard({ article, onArticleClick }: NewsCardProps) {
         {/* Headline */}
         <h2 className="newspaper-headline text-xl text-black dark:text-white mb-3 line-clamp-2 hover:text-red-600 dark:hover:text-red-400 transition-colors">
           <Link 
-            href={`/article/${generateArticleSlug(article)}`}
+            href={`/article/${(() => {
+              // If slug exists and is different from url_hash, use slug
+              if (article.slug && article.slug !== article.url_hash) {
+                return article.slug;
+              }
+              // If slug looks like a hash (32 chars, hex), use ID instead
+              if (article.slug && /^[a-f0-9]{32}$/i.test(article.slug)) {
+                return article.id;
+              }
+              // Otherwise use the slug or fallback to ID
+              return article.slug || article.id;
+            })()}`}
             className="hover:underline"
-            onClick={onArticleClick}
+            onClick={() => {
+              const finalSlug = (() => {
+                if (article.slug && article.slug !== article.url_hash) {
+                  return article.slug;
+                }
+                if (article.slug && /^[a-f0-9]{32}$/i.test(article.slug)) {
+                  return article.id;
+                }
+                return article.slug || article.id;
+              })();
+              
+              console.log('Article clicked:', {
+                headline: article.headline,
+                slug: article.slug,
+                url_hash: article.url_hash,
+                id: article.id,
+                finalSlug: finalSlug,
+                hasProperSlug: !!article.slug && article.slug !== article.url_hash,
+                isHashLike: article.slug && /^[a-f0-9]{32}$/i.test(article.slug)
+              });
+              onArticleClick?.();
+            }}
           >
             {article.headline}
           </Link>
@@ -128,17 +214,35 @@ export default function NewsCard({ article, onArticleClick }: NewsCardProps) {
         </div>
 
 
-        {/* Reading Time and Region */}
+        {/* Enhanced Reading Time, Region, and Quality Metrics */}
         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
             <span className="flex items-center">
               <Eye className="w-3 h-3 mr-1" />
-              {article.raw.reading_time} min read
+              {article.raw?.reading_time || 5} min read
             </span>
-            <span className="flex items-center">
-              <MapPin className="w-3 h-3 mr-1" />
-              {article.metadata.region}
-            </span>
+            {article.metadata?.region && (
+              <span className="flex items-center">
+                <MapPin className="w-3 h-3 mr-1" />
+                {article.metadata.region}
+              </span>
+            )}
+            
+            {/* Quality Score - only show if available */}
+            {article.news_score && (
+              <span className="flex items-center">
+                <Star className="w-3 h-3 mr-1" />
+                {Math.round(article.news_score * 100)}%
+              </span>
+            )}
+            
+            {/* News Category - only show if available */}
+            {article.news_category && (
+              <span className="flex items-center">
+                <TrendingUp className="w-3 h-3 mr-1" />
+                {article.news_category}
+              </span>
+            )}
           </div>
         </div>
 
@@ -174,6 +278,9 @@ export default function NewsCard({ article, onArticleClick }: NewsCardProps) {
                         fill
                         className="object-cover rounded-lg shadow-md"
                         sizes="(max-width: 1200px) 90vw, 1200px"
+                        loading="lazy"
+                        placeholder="blur"
+                        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
                         }}

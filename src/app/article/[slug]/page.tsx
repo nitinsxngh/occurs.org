@@ -13,23 +13,34 @@ interface ArticlePageProps {
 
 async function getArticle(slug: string): Promise<NewsItem | null> {
   try {
+    console.log('getArticle called with slug:', slug);
+    
     // Use internal API call without full URL for better performance
     const baseUrl = process.env.NODE_ENV === 'production' 
       ? 'https://occurs.org' 
       : 'http://localhost:3000';
     
-    const response = await fetch(`${baseUrl}/api/article/${slug}`, {
+    const apiUrl = `${baseUrl}/api/article/${slug}`;
+    console.log('Fetching from API URL:', apiUrl);
+    
+    const response = await fetch(apiUrl, {
       next: { revalidate: 1800 }, // Cache for 30 minutes
       headers: {
         'Content-Type': 'application/json',
       },
     });
     
+    console.log('API response status:', response.status);
+    
     if (!response.ok) {
+      console.error('API response not OK:', response.status, response.statusText);
+      const errorText = await response.text();
+      console.error('API error response:', errorText);
       return null;
     }
     
     const data = await response.json();
+    console.log('API response data:', data);
     return data.article || null;
   } catch (error) {
     console.error('Error fetching article:', error);
@@ -159,6 +170,8 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
                   className="object-cover"
                   sizes="(max-width: 768px) 100vw, 768px"
                   priority
+                  placeholder="blur"
+                  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
                 />
               </div>
               {/* Image Credits */}

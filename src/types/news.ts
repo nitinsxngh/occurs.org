@@ -19,6 +19,21 @@ export interface NewsItem {
   top_image: string;
   authors: string[];
   
+  // New enhanced fields (optional for backward compatibility)
+  slug?: string;                   // Direct URL-friendly identifier
+  news_type?: string;             // Breaking, Hard, Soft, etc.
+  news_category?: string;         // Politics, Economy, Health, etc.
+  urgency_level?: 'high' | 'medium' | 'low';
+  impact_scope?: 'international' | 'national' | 'regional' | 'local';
+  news_score?: number;            // Overall news quality score
+  news_worthiness?: {             // 5-factor scoring
+    impact_significance: number;
+    public_interest: number;
+    relevance: number;
+    timeliness: number;
+    uniqueness: number;
+  };
+  
   // Rich content objects
   raw: {
     text: string;

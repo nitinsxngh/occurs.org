@@ -41,16 +41,26 @@ function getBestDateForSorting(item: Record<string, unknown>): Date {
   return new Date(0);
 }
 
-// Helper function to create a composite sort key for consistent ordering
+// ENHANCED: Multi-factor sorting with new fields
 function createSortKey(item: Record<string, unknown>): string {
   const date = getBestDateForSorting(item);
-  const isBreaking = item.breaking ? '1' : '0';
-  const confidenceScore = String(Number(item.confidence_score) || 0).padStart(10, '0');
+  
+  // Enhanced priority system
+  const isBreaking = (item.news_type === 'Breaking' || item.breaking) ? '1' : '0';
+  const urgencyLevel = item.urgency_level === 'high' ? '3' : 
+                      item.urgency_level === 'medium' ? '2' : '1';
+  const impactScope = item.impact_scope === 'international' ? '4' :
+                     item.impact_scope === 'national' ? '3' :
+                     item.impact_scope === 'regional' ? '2' : '1';
+  
+  // Use news_score if available, otherwise fallback to confidence_score
+  const qualityScore = String(Number(item.news_score || item.confidence_score) || 0).padStart(10, '0');
   const id = String(item.id || '').padStart(36, '0');
   
-  // Format: YYYYMMDDHHMMSS-B-CONF-ID (newest first, breaking first, higher confidence first)
+  // Format: YYYYMMDDHHMMSS-B-U-I-Q-ID 
+  // (Date-Breaking-Urgency-Impact-Quality-ID)
   const dateStr = date.toISOString().replace(/[-T:.Z]/g, '').substring(0, 14);
-  return `${dateStr}-${isBreaking}-${confidenceScore}-${id}`;
+  return `${dateStr}-${isBreaking}-${urgencyLevel}-${impactScope}-${qualityScore}-${id}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -63,6 +73,14 @@ export async function GET(request: NextRequest) {
     const hasS3Data = searchParams.get('hasS3Data') === 'true';
     const page = parseInt(searchParams.get('page') || '1');
     const lastEvaluatedKey = searchParams.get('lastEvaluatedKey');
+    
+    // NEW: Enhanced filtering with new fields
+    const newsType = searchParams.get('newsType');
+    const newsCategory = searchParams.get('newsCategory');
+    const urgencyLevel = searchParams.get('urgencyLevel');
+    const impactScope = searchParams.get('impactScope');
+    const minNewsScore = parseFloat(searchParams.get('minNewsScore') || '0');
+    const minConfidence = parseFloat(searchParams.get('minConfidence') || '0');
 
     // Build filter expression for processed content
     let filterExpression = 'attribute_exists(#processed)';
@@ -93,6 +111,43 @@ export async function GET(request: NextRequest) {
     if (hasS3Data) {
       filterExpression += ' AND attribute_exists(#s3_key)';
       expressionAttributeNames['#s3_key'] = 's3_key';
+    }
+
+    // NEW: Enhanced filtering with new fields
+    if (newsType) {
+      filterExpression += ' AND #news_type = :news_type';
+      expressionAttributeNames['#news_type'] = 'news_type';
+      expressionAttributeValues[':news_type'] = { S: newsType };
+    }
+
+    if (newsCategory) {
+      filterExpression += ' AND #news_category = :news_category';
+      expressionAttributeNames['#news_category'] = 'news_category';
+      expressionAttributeValues[':news_category'] = { S: newsCategory };
+    }
+
+    if (urgencyLevel) {
+      filterExpression += ' AND #urgency_level = :urgency_level';
+      expressionAttributeNames['#urgency_level'] = 'urgency_level';
+      expressionAttributeValues[':urgency_level'] = { S: urgencyLevel };
+    }
+
+    if (impactScope) {
+      filterExpression += ' AND #impact_scope = :impact_scope';
+      expressionAttributeNames['#impact_scope'] = 'impact_scope';
+      expressionAttributeValues[':impact_scope'] = { S: impactScope };
+    }
+
+    if (minNewsScore > 0) {
+      filterExpression += ' AND #news_score >= :min_news_score';
+      expressionAttributeNames['#news_score'] = 'news_score';
+      expressionAttributeValues[':min_news_score'] = { N: minNewsScore.toString() };
+    }
+
+    if (minConfidence > 0) {
+      filterExpression += ' AND #confidence_score >= :min_confidence';
+      expressionAttributeNames['#confidence_score'] = 'confidence_score';
+      expressionAttributeValues[':min_confidence'] = { N: minConfidence.toString() };
     }
 
     // For the first page, fetch more items to ensure we have enough after sorting
@@ -147,7 +202,7 @@ export async function GET(request: NextRequest) {
     const endIndex = startIndex + limit;
     const paginatedNews = sortedNews.slice(startIndex, endIndex);
 
-    // Return rich content articles
+    // Return rich content articles with new fields and fallbacks
     const cleanedNews = paginatedNews.map(article => ({
       id: article.id,
       headline: article.headline,
@@ -168,6 +223,20 @@ export async function GET(request: NextRequest) {
       llm_version: article.llm_version,
       top_image: article.top_image,
       authors: article.authors,
+      // NEW: Enhanced fields with fallbacks for backward compatibility
+      slug: article.slug || article.url_hash || article.id,
+      news_type: article.news_type || 'General',
+      news_category: article.news_category || article.category || 'General',
+      urgency_level: article.urgency_level || 'medium',
+      impact_scope: article.impact_scope || 'national',
+      news_score: article.news_score || article.confidence_score || 0.5,
+      news_worthiness: article.news_worthiness || {
+        impact_significance: 0.5,
+        public_interest: 0.5,
+        relevance: 0.5,
+        timeliness: 0.5,
+        uniqueness: 0.5
+      },
       raw: article.raw,
       processed: article.processed,
       metadata: article.metadata

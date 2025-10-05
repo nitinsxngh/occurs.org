@@ -1,29 +1,24 @@
 import { Metadata } from 'next';
 import { NewsItem } from '@/types/news';
-import { generateSlug } from '@/utils/slug';
 
 export function generateArticleMetadata(article: NewsItem, baseUrl: string = 'https://occurs.org'): Metadata {
   const title = article.headline;
   const description = article.processed?.website?.summary || article.headline;
   const image = article.top_image && article.top_image !== 'NA' ? article.top_image : `${baseUrl}/og-default.png`;
   
-  // Generate SEO-friendly slug
-  const headlineSlug = generateSlug(article.headline);
-  const truncatedSlug = headlineSlug.length > 60 
-    ? headlineSlug.substring(0, 60).replace(/-+$/, '')
-    : headlineSlug;
-  const slug = truncatedSlug.length > 10 ? truncatedSlug : article.url_hash;
+  // OPTIMIZATION: Use direct slug from DB (much faster!)
+  const slug = article.slug || article.url_hash;
   const url = `${baseUrl}/article/${slug}`;
   const publishedTime = article.processed_at || article.created_at || article.scraped_at;
-  const authors = article.authors && Array.isArray(article.authors) ? article.authors : ['occurs.org Editorial Team'];
+  const authors = ['Occurs Organisation'];
   
   return {
     title: `${title} | occurs.org`,
     description,
     keywords: article.processed?.website?.tags?.join(', ') || '',
     authors: authors.map(author => ({ name: author })),
-    publisher: 'occurs.org',
-    creator: article.source || 'occurs.org',
+    publisher: 'Occurs Organisation',
+    creator: article.source || 'Occurs Organisation',
     openGraph: {
       type: 'article',
       title,
@@ -68,16 +63,12 @@ export function generateArticleMetadata(article: NewsItem, baseUrl: string = 'ht
 }
 
 export function generateStructuredData(article: NewsItem, baseUrl: string = 'https://occurs.org') {
-  // Generate SEO-friendly slug
-  const headlineSlug = generateSlug(article.headline);
-  const truncatedSlug = headlineSlug.length > 60 
-    ? headlineSlug.substring(0, 60).replace(/-+$/, '')
-    : headlineSlug;
-  const slug = truncatedSlug.length > 10 ? truncatedSlug : article.url_hash;
+  // OPTIMIZATION: Use direct slug from DB (much faster!)
+  const slug = article.slug || article.url_hash;
   const url = `${baseUrl}/article/${slug}`;
   const image = article.top_image && article.top_image !== 'NA' ? article.top_image : `${baseUrl}/og-default.png`;
   const publishedTime = article.processed_at || article.created_at || article.scraped_at;
-  const authors = article.authors && Array.isArray(article.authors) ? article.authors : ['occurs.org Editorial Team'];
+  const authors = ['Occurs Organisation'];
 
   // NewsArticle Schema
   const newsArticle = {
@@ -94,10 +85,10 @@ export function generateStructuredData(article: NewsItem, baseUrl: string = 'htt
     })),
     publisher: {
       '@type': 'Organization',
-      name: 'occurs.org',
+      name: 'Occurs Organisation',
       logo: {
         '@type': 'ImageObject',
-        url: `${baseUrl}/logo.png`,
+        url: `${baseUrl}/android-chrome-192x192.png`,
       },
     },
     mainEntityOfPage: {
@@ -113,9 +104,9 @@ export function generateStructuredData(article: NewsItem, baseUrl: string = 'htt
   const organization = {
     '@context': 'https://schema.org',
     '@type': 'NewsMediaOrganization',
-    name: 'occurs.org',
+    name: 'Occurs Organisation',
     url: baseUrl,
-    logo: `${baseUrl}/logo.png`,
+    logo: `${baseUrl}/android-chrome-192x192.png`,
     sameAs: [
       'https://twitter.com/occursorg',
       'https://facebook.com/occursorg',
