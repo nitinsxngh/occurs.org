@@ -116,7 +116,12 @@ export async function GET() {
   ];
 
   // Fetch articles for dynamic pages
-  let articlePages: any[] = [];
+  let articlePages: Array<{
+    url: string;
+    lastModified: string;
+    changeFrequency: string;
+    priority: number;
+  }> = [];
   
   try {
     // Use localhost for development, baseUrl for production
