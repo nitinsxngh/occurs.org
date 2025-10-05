@@ -1,4 +1,4 @@
-import { MetadataRoute } from 'next';
+import { NextResponse } from 'next/server';
 import { generateArticleSlug } from '@/utils/slug';
 
 // Calculate article priority based on news type, urgency, and score
@@ -78,59 +78,61 @@ function determineChangeFrequency(newsType?: string, urgencyLevel?: string): str
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+export async function GET() {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://occurs.org';
 
-      // Static pages
-      const staticPages: MetadataRoute.Sitemap = [
-        {
-          url: baseUrl,
-          lastModified: new Date(),
-          changeFrequency: 'hourly',
-          priority: 1,
-        },
-        {
-          url: `${baseUrl}/about`,
-          lastModified: new Date(),
-          changeFrequency: 'monthly',
-          priority: 0.8,
-        },
-        {
-          url: `${baseUrl}/contact`,
-          lastModified: new Date(),
-          changeFrequency: 'monthly',
-          priority: 0.7,
-        },
-        {
-          url: `${baseUrl}/privacy-policy`,
-          lastModified: new Date(),
-          changeFrequency: 'yearly',
-          priority: 0.5,
-        },
-        {
-          url: `${baseUrl}/terms-of-service`,
-          lastModified: new Date(),
-          changeFrequency: 'yearly',
-          priority: 0.5,
-        },
-      ];
+  // Static pages
+  const staticPages = [
+    {
+      url: baseUrl,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'hourly',
+      priority: 1,
+    },
+    {
+      url: `${baseUrl}/about`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/contact`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/privacy-policy`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'yearly',
+      priority: 0.5,
+    },
+    {
+      url: `${baseUrl}/terms-of-service`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'yearly',
+      priority: 0.5,
+    },
+  ];
 
   // Fetch articles for dynamic pages
+  let articlePages: any[] = [];
+  
   try {
-        // Use localhost for development, baseUrl for production
-        const apiUrl = process.env.NODE_ENV === 'development' 
-          ? 'http://localhost:3000/api/news' 
-          : `${baseUrl}/api/news`;
-          
-        const response = await fetch(`${apiUrl}?limit=50&_t=${Date.now()}`, {
-          cache: 'no-store', // Disable caching for sitemap generation
-        });
-    
+    // Use localhost for development, baseUrl for production
+    const apiUrl = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:3000/api/news' 
+      : `${baseUrl}/api/news`;
+      
+    const response = await fetch(`${apiUrl}?limit=50&_t=${Date.now()}`, {
+      cache: 'no-store', // Disable caching for sitemap generation
+    });
+
     if (response.ok) {
       const data = await response.json();
       const articles = data.news || [];
       
-          const articlePages: MetadataRoute.Sitemap = articles.map((article: { 
+      articlePages = articles.map((article: { 
         headline: string; 
         url_hash: string; 
         slug?: string; 
@@ -153,27 +155,39 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         // Calculate priority based on news type and urgency
         const priority = calculateArticlePriority(article);
         
-        // Priority calculated successfully
-        
         // Determine change frequency based on news type
         const changeFrequency = determineChangeFrequency(article.news_type, article.urgency_level);
         
-        // Dynamic priority system working correctly
-        
         return {
           url: `${baseUrl}/article/${slug}`,
-          lastModified: new Date(article.processed_at || article.created_at || article.scraped_at || new Date()),
-          changeFrequency: changeFrequency as 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never',
+          lastModified: new Date(article.processed_at || article.created_at || article.scraped_at || new Date()).toISOString(),
+          changeFrequency: changeFrequency,
           priority: article.news_type === 'Breaking' ? 0.9 : priority,
         };
       });
-
-      return [...staticPages, ...articlePages];
     }
-      } catch {
-        // Error generating sitemap
-      }
+  } catch (error) {
+    console.error('Error fetching articles for sitemap:', error);
+  }
 
-  return staticPages;
+  const allPages = [...staticPages, ...articlePages];
+
+  // Generate XML sitemap
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${allPages.map(page => `  <url>
+    <loc>${page.url}</loc>
+    <lastmod>${page.lastModified}</lastmod>
+    <changefreq>${page.changeFrequency}</changefreq>
+    <priority>${page.priority}</priority>
+  </url>`).join('\n')}
+</urlset>`;
+
+  return new NextResponse(sitemap, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/xml',
+      'Cache-Control': 'public, max-age=3600, s-maxage=3600', // Cache for 1 hour
+    },
+  });
 }
-
